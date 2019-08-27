@@ -66,14 +66,14 @@ namespace AutoFollow
 
         public IEnumerator FollowTarget(Character c, Character target)
         {
-            if (!c || !target) { CharactersFollowing.Remove(c.UID); } // null check
-
             var autoRun = c.CharacterControl.GetType().GetField("m_autoRun", BindingFlags.Instance | BindingFlags.NonPublic);
 
             while (CharactersFollowing.Contains(c.UID))
             {
-                float distance = Vector3.Distance(c.transform.position, target.transform.position);
+                if (!c || !target) { CharactersFollowing.Remove(c.UID); break; } // null check
 
+                // check distance and handle movement
+                float distance = Vector3.Distance(c.transform.position, target.transform.position);
                 if (distance > 1)
                 {
                     autoRun.SetValue(c.CharacterControl, true);                    
@@ -85,7 +85,7 @@ namespace AutoFollow
                 
                 // Fix Rotation
                 var targetRot = Quaternion.LookRotation(target.transform.position - c.transform.position); // get look rotation (target - self)
-                var str = Mathf.Min(10f * Time.deltaTime, 1); // set rotation speed (this is very high)
+                var str = Mathf.Min(5f * Time.deltaTime, 1); // set rotation speed (this is very high)
 
                 Quaternion fix = new Quaternion(targetRot.x, targetRot.y, 0, targetRot.w); // dont want to rotate Z axis
                 c.transform.rotation = Quaternion.Lerp(c.transform.rotation, fix, str); // rotate lerp
