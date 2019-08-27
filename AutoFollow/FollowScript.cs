@@ -14,87 +14,138 @@ namespace AutoFollow
 {
     public class FollowScript : MonoBehaviour
     {
+        public List<Character> PlayerCharacters = new List<Character>();
+
+        // list of UID strings for characters currently following another player
         public List<string> CharactersFollowing = new List<string>();
-        public string FollowKey = "Follow Co-Op Partner";
+
+        public string FollowKey = "Toggle Auto-Follow";
+        public string ToggleTargetKey = "Change Auto-Follow Target";
 
         public void Init()
         {
             AddAction(FollowKey, KeybindingsCategory.Actions, ControlType.Both, 5);
         }
 
+        // update runs once per frame
         internal void Update()
         {
-            // clear autofollows if we go to menu
+            // if no local characters, return (and clear list)
             if (CharacterManager.Instance.PlayerCharacters.Count <= 0)
             {
                 if (CharactersFollowing.Count > 0) { CharactersFollowing.Clear(); }
                 return;
             }
 
+            // update character list on change
+            if (CharacterManager.Instance.PlayerCharacters.Count != PlayerCharacters.Count())
+            {
+                PlayerCharacters.Clear();
+                foreach (string uid in CharacterManager.Instance.PlayerCharacters.Values)
+                {
+                    PlayerCharacters.Add(CharacterManager.Instance.GetCharacter(uid));
+                }
+            }
+
             // check each local character input every frame for follow input
             int ID = 0;
-            foreach (string uid in CharacterManager.Instance.PlayerCharacters.Values)
+            foreach (Character c in PlayerCharacters)
             {
-                Character c1 = CharacterManager.Instance.GetCharacter(uid);
+                string uid = c.UID;
 
                 // make sure the player is local (ie not an online co-op player)
-                if (c1 && c1.IsLocalPlayer)
+                if (c.IsLocalPlayer)
                 {
+                    // check if follow toggle is being pressed
                     if (m_playerInputManager[ID].GetButtonDown(FollowKey))
                     {
-                        if (CharactersFollowing.Contains(uid))
-                        {
-                            CharactersFollowing.Remove(uid);
-                        }
-                        else
-                        {
-                            CharactersFollowing.Add(uid);
-                            foreach (string uid2 in CharacterManager.Instance.PlayerCharacters.Values.Where(x => x != uid)) // finds ANY other player character and follows it.
-                            {
-                                Character c2 = CharacterManager.Instance.GetCharacter(uid2);
-
-                                if (c2) { StartCoroutine(FollowTarget(c1, c2)); }
-                            }
-                        }
+                        ToggleFollow(c, uid);
                     }
 
-                    ID++;
+                    ID++; // increase 1 to the ID count every loop. each local character will be in the same order of the PlayerCharacters list and their ID number.
                 }
             }
         }
 
+        // toggle the autofollow on and off
+        public void ToggleFollow(Character c, string uid)
+        {
+            // if currently following, remove us from the following list (breaks the follow function automatically)
+            if (CharactersFollowing.Contains(uid))
+            {
+                CharactersFollowing.Remove(uid);
+            }
+            else
+            {
+                // find closest player character and follow it.
+                float currentLowest = -1;
+                Character newTarget = null;
 
+                // for each player character who's UID is not this character's UID
+                foreach (string uid2 in CharacterManager.Instance.PlayerCharacters.Values.Where(x => x != uid))
+                {
+                    if (CharacterManager.Instance.GetCharacter(uid2) is Character c2)
+                    {
+                        if (currentLowest == -1 || Vector3.Distance(c2.transform.position, c.transform.position) < currentLowest)
+                        {
+                            newTarget = c2;
+                            currentLowest = Vector3.Distance(c2.transform.position, c.transform.position);
+                        }
+                    }
+                }
+
+                if (newTarget && currentLowest > 0)
+                {
+                    CharactersFollowing.Add(uid);
+                    StartCoroutine(FollowTarget(c, newTarget));
+                }
+            }
+        }
+
+        // follow target coroutine. runs until the UID is removed from the CharactersFollowing list.
         public IEnumerator FollowTarget(Character c, Character target)
         {
+            // get the autoRun private field (bool)
             var autoRun = c.CharacterControl.GetType().GetField("m_autoRun", BindingFlags.Instance | BindingFlags.NonPublic);
 
             while (CharactersFollowing.Contains(c.UID))
             {
-                if (!c || !target) { CharactersFollowing.Remove(c.UID); break; } // null check
+                // null check for player and target
+                if (!c || !target)
+                {
+                    CharactersFollowing.Remove(c.UID);
+                    break;
+                }
 
-                // check distance and handle movement
+                // check distance and handle autorun
                 float distance = Vector3.Distance(c.transform.position, target.transform.position);
-                if (distance > 1)
-                {
-                    autoRun.SetValue(c.CharacterControl, true);                    
-                }
-                else
-                {
-                    autoRun.SetValue(c.CharacterControl, false);
-                }
-                
-                // Fix Rotation
-                var targetRot = Quaternion.LookRotation(target.transform.position - c.transform.position); // get look rotation (target - self)
-                var str = Mathf.Min(5f * Time.deltaTime, 1); // set rotation speed (this is very high)
 
-                Quaternion fix = new Quaternion(targetRot.x, targetRot.y, 0, targetRot.w); // dont want to rotate Z axis
-                c.transform.rotation = Quaternion.Lerp(c.transform.rotation, fix, str); // rotate lerp
-                c.CharacterCamera.transform.rotation = Quaternion.Lerp(c.transform.rotation, targetRot, str); // camera rotate too
+                if (distance > 1) { autoRun.SetValue(c.CharacterControl, true); }
+                else              { autoRun.SetValue(c.CharacterControl, false); }
 
-                yield return null;
+                // player and camera rotation:
+
+                // get look rotation (target - self)
+                var targetRot = Quaternion.LookRotation(target.transform.position - c.transform.position);
+
+                // set rotation speed per delta time (time of last frame)
+                var str = Mathf.Min(5f * Time.deltaTime, 1);
+
+                // never want to rotate Z axis of the character, set it to 0
+                Quaternion fix = new Quaternion(targetRot.x, targetRot.y, 0, targetRot.w); 
+
+                // rotate the player smoothly
+                c.transform.rotation = Quaternion.Lerp(c.transform.rotation, fix, str); 
+
+                // rotate camera too (but dont use the Z axis fix, use actual target rotation)
+                c.CharacterCamera.transform.rotation = Quaternion.Lerp(c.transform.rotation, targetRot, str); 
+
+                // sleep the coroutine for 100ms. use 'yield return null' for no sleep.
+                yield return new WaitForSeconds(0.1f);
             }
 
-            autoRun.SetValue(c.CharacterControl, false); // force stop autorun on exit
+            // force stop autorun on exit
+            if (c) { autoRun.SetValue(c.CharacterControl, false); } 
         }
     }
 }
