@@ -14,15 +14,20 @@ namespace AutoFollow
     public class FollowScript : MonoBehaviour
     {
         public List<Character> PlayerCharacters = new List<Character>(); // list of all player characters
-        public List<string> CharactersFollowing = new List<string>(); // list of UID strings for characters currently following another player
+        public Dictionary<int, Character> LocalPlayers = new Dictionary<int, Character>(); // list of local characters, and their IDs
+        public Dictionary<string, string> CharactersFollowing = new Dictionary<string, string>(); // key: follower UID, value: target UID
 
         public string FollowKey = "Toggle Auto-Follow";
 
-        public float MinFollowDistance = 1.5f;
+        public float MinFollowDistance = 1.5f; // minimum distance for autofollow
+        public float RotateSpeed = 5f; // speed of camera rotation
 
         public void Init()
         {
             AddAction(FollowKey, KeybindingsCategory.Actions, ControlType.Both, 5);
+
+            // sprint input hook
+            On.ControlsInput.Sprint += new On.ControlsInput.hook_Sprint(SprintHook);
         }
 
         // update runs once per frame
@@ -31,7 +36,11 @@ namespace AutoFollow
             // if no local characters, return (and clear list)
             if (CharacterManager.Instance.PlayerCharacters.Count <= 0)
             {
-                if (CharactersFollowing.Count > 0) { CharactersFollowing.Clear(); }
+                if (CharactersFollowing.Count > 0)
+                {
+                    CharactersFollowing.Clear();
+                    LocalPlayers.Clear();
+                }
                 return;
             }
 
@@ -39,9 +48,19 @@ namespace AutoFollow
             if (CharacterManager.Instance.PlayerCharacters.Count != PlayerCharacters.Count())
             {
                 PlayerCharacters.Clear();
+                LocalPlayers.Clear();
+                int localID = 0;
                 foreach (string uid in CharacterManager.Instance.PlayerCharacters.Values)
                 {
-                    PlayerCharacters.Add(CharacterManager.Instance.GetCharacter(uid));
+                    Character c = CharacterManager.Instance.GetCharacter(uid);
+
+                    PlayerCharacters.Add(c);
+
+                    if (c.IsLocalPlayer)
+                    {
+                        LocalPlayers.Add(localID, c);
+                        localID++;
+                    }
                 }
             }
 
@@ -53,8 +72,7 @@ namespace AutoFollow
                 {
                     ToggleFollow(c);
                 }
-
-                ID++; // increase 1 to the ID count every loop. the order of the PlayerCharacters list will be the same ID order for the playerInputManager
+                ID++;
             }
         }
 
@@ -64,13 +82,13 @@ namespace AutoFollow
             string uid = c.UID;
 
             // if currently following, remove us from the following list (breaks the follow function automatically)
-            if (CharactersFollowing.Contains(uid))
+            if (CharactersFollowing.ContainsKey(uid))
             {
                 CharactersFollowing.Remove(uid);
             }
-            else
+            else // otherwise, toggle it on
             {
-                // find closest player character and follow it.
+                // find closest player character and follow it
                 float currentLowest = -1;
                 Character newTarget = null;
 
@@ -86,7 +104,7 @@ namespace AutoFollow
 
                 if (newTarget && currentLowest > 0)
                 {
-                    CharactersFollowing.Add(uid);
+                    CharactersFollowing.Add(uid, newTarget.UID);
                     StartCoroutine(FollowTarget(c, newTarget));
                 }
             }
@@ -96,9 +114,9 @@ namespace AutoFollow
         public IEnumerator FollowTarget(Character c, Character target)
         {
             // get the autoRun private field (bool)
-            var autoRun = c.CharacterControl.GetType().GetField("m_autoRun", BindingFlags.Instance | BindingFlags.NonPublic);
+            FieldInfo autoRun = c.CharacterControl.GetType().GetField("m_autoRun", BindingFlags.Instance | BindingFlags.NonPublic);
 
-            while (CharactersFollowing.Contains(c.UID))
+            while (CharactersFollowing.ContainsKey(c.UID))
             {
                 // null check for player and target
                 if (!c || !target)
@@ -110,18 +128,50 @@ namespace AutoFollow
                 // check distance and handle autorun
                 float distance = Vector3.Distance(c.transform.position, target.transform.position);
 
-                if (distance > MinFollowDistance) { autoRun.SetValue(c.CharacterControl, true); }
-                else { autoRun.SetValue(c.CharacterControl, false); }
+                if (distance > MinFollowDistance)
+                {
+                    autoRun.SetValue(c.CharacterControl, true);
+
+                    if (target.Sprinting && !c.Sprinting)
+                    {
+                        FieldInfo m_speedModifier = typeof(CharacterStats).GetField("m_speedModifier", BindingFlags.NonPublic | BindingFlags.Instance);
+                        Stat curModif = m_speedModifier.GetValue(c.Stats) as Stat;
+
+
+                    }
+                }
+                else
+                {
+                    autoRun.SetValue(c.CharacterControl, false);
+                }
 
                 // rotate the camera to follow the target
                 var targetRot = Quaternion.LookRotation(target.transform.position - c.transform.position);
-                c.CharacterCamera.transform.rotation = Quaternion.Lerp(c.CharacterCamera.transform.rotation, targetRot, Mathf.Min(5f * Time.deltaTime, 1));
+                c.CharacterCamera.transform.rotation = Quaternion.Lerp(c.CharacterCamera.transform.rotation, targetRot, Mathf.Min(RotateSpeed * Time.deltaTime, 1));
 
                 yield return null;
             }
 
             // force stop autorun on exit
             if (c) { autoRun.SetValue(c.CharacterControl, false); }
+        }
+
+        // try sprint if target is sprinting
+        public bool SprintHook(On.ControlsInput.orig_Sprint orig, int _playerID)
+        {
+            // get the UID of this local _playerID, and see if it is currently following anything
+            if (CharactersFollowing.ContainsKey(LocalPlayers[_playerID].UID))
+            {
+                // get the target character from our CharactersFollowing dictionary
+                Character target = CharacterManager.Instance.GetCharacter(CharactersFollowing[LocalPlayers[_playerID].UID]);
+                if (target)
+                {
+                    return target.Sprinting; // if target sprints, we sprint
+                }
+            }
+
+            // fallback to orig function. its static, so no need for orig(self, _playerID), just orig(_playerID)
+            return orig(_playerID);
         }
     }
 }
