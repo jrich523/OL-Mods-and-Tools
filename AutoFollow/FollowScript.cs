@@ -73,13 +73,14 @@ namespace AutoFollow
                 {
                     autoRun.SetValue(c.CharacterControl, true);
 
-                    if (distance > 5)
+                    if (distance > 3)
                     {
-                        ControlsInput.Sprint(localID);
+                        c.SprintInput(true);
                     }
                 }
                 else
                 {
+                    c.SprintInput(false);
                     autoRun.SetValue(c.CharacterControl, false);
                 }
 
