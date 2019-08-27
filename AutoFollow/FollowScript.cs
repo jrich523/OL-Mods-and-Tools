@@ -50,7 +50,7 @@ namespace AutoFollow
                             {
                                 Character c2 = CharacterManager.Instance.GetCharacter(uid2);
 
-                                if (c2) { StartCoroutine(FollowTarget(c1, c2)); }
+                                if (c2) { StartCoroutine(FollowTarget(c1, c2, ID)); }
                             }
                         }
                     }
@@ -61,7 +61,7 @@ namespace AutoFollow
         }
 
 
-        public IEnumerator FollowTarget(Character c, Character target)
+        public IEnumerator FollowTarget(Character c, Character target, int localID)
         {
             var autoRun = c.CharacterControl.GetType().GetField("m_autoRun", BindingFlags.Instance | BindingFlags.NonPublic);
 
@@ -72,6 +72,11 @@ namespace AutoFollow
                 if (distance > 1)
                 {
                     autoRun.SetValue(c.CharacterControl, true);
+
+                    if (distance > 5)
+                    {
+                        ControlsInput.Sprint(localID);
+                    }
                 }
                 else
                 {
