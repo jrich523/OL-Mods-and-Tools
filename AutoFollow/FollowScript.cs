@@ -49,22 +49,26 @@ namespace AutoFollow
             {
                 PlayerCharacters.Clear();
                 LocalPlayers.Clear();
+
+                // this list will be the same order that m_playerInputManager uses for local player IDs, so its safe to get them this "blind" way.
+                // there will only ever be two local players, and the host character is always 0.
                 int localID = 0;
+
                 foreach (string uid in CharacterManager.Instance.PlayerCharacters.Values)
                 {
+                    // add all players (including online) to main list
                     Character c = CharacterManager.Instance.GetCharacter(uid);
-
                     PlayerCharacters.Add(c);
 
                     if (c.IsLocalPlayer)
                     {
                         LocalPlayers.Add(localID, c);
-                        localID++;
+                        localID++; // increment to local ID counter only when we find a LocalPlayer
                     }
                 }
             }
 
-            // check each local character input every frame for follow input
+            // check each local character for follow input
             foreach (KeyValuePair<int, Character> player in LocalPlayers)
             {
                 if (m_playerInputManager[player.Key].GetButtonDown(FollowKey))
@@ -90,9 +94,10 @@ namespace AutoFollow
                 float currentLowest = -1;
                 Character newTarget = null;
 
-                // for each player character who's UID is not this character's UID
+                // for each player who's UID is not this character's UID
                 foreach (Character c2 in PlayerCharacters.Where(x => x.UID != uid))
                 {
+                    // if this is the first check, or if it is a new lowest distance
                     if (currentLowest == -1 || Vector3.Distance(c2.transform.position, c.transform.position) < currentLowest)
                     {
                         newTarget = c2;
@@ -100,6 +105,7 @@ namespace AutoFollow
                     }
                 }
 
+                // add us to the currently following list, and start the coroutine
                 if (newTarget && currentLowest > 0)
                 {
                     CharactersFollowing.Add(uid, newTarget.UID);
@@ -127,17 +133,13 @@ namespace AutoFollow
                 float distance = Vector3.Distance(c.transform.position, target.transform.position);
 
                 if (distance > MinFollowDistance)
-                {
                     autoRun.SetValue(c.CharacterControl, true);
-                }
                 else
-                {
                     autoRun.SetValue(c.CharacterControl, false);
-                }
 
                 // rotate the camera to follow the target
                 var targetRot = Quaternion.LookRotation(target.transform.position - c.transform.position);
-                c.CharacterCamera.transform.rotation = Quaternion.Lerp(c.CharacterCamera.transform.rotation, targetRot, Mathf.Min(RotateSpeed * Time.deltaTime, 1));
+                c.CharacterCamera.transform.rotation = Quaternion.Lerp(c.CharacterCamera.transform.rotation, targetRot, RotateSpeed * Time.deltaTime);
 
                 yield return null;
             }
