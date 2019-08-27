@@ -1,12 +1,8 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using System.Collections;
-using System.IO;
 using System.Reflection;
 using UnityEngine;
-using UnityEngine.UI;
 using static CustomKeybindings;
 
 namespace AutoFollow
@@ -24,6 +20,7 @@ namespace AutoFollow
 
         public void Init()
         {
+            // CustomKeybindings.cs (credit: Stian)
             AddAction(FollowKey, KeybindingsCategory.Actions, ControlType.Both, 5);
 
             // sprint input hook
@@ -83,7 +80,7 @@ namespace AutoFollow
         {
             string uid = c.UID;
 
-            // if currently following, remove us from the following list (breaks the follow function automatically)
+            // if currently following, remove this character from the following list (breaks the follow function automatically)
             if (CharactersFollowing.ContainsKey(uid))
             {
                 CharactersFollowing.Remove(uid);
@@ -94,20 +91,24 @@ namespace AutoFollow
                 float currentLowest = -1;
                 Character newTarget = null;
 
-                // for each player who's UID is not this character's UID
-                foreach (Character c2 in PlayerCharacters.Where(x => x.UID != uid))
+                // check all other characters
+                foreach (string uid2 in CharacterManager.Instance.PlayerCharacters.Values.Where(x => x != uid))
                 {
+                    Character c2 = CharacterManager.Instance.GetCharacter(uid2);
+                    float distance = Vector3.Distance(c2.transform.position, c.transform.position);
+
                     // if this is the first check, or if it is a new lowest distance
-                    if (currentLowest == -1 || Vector3.Distance(c2.transform.position, c.transform.position) < currentLowest)
+                    if (currentLowest == -1 || distance < currentLowest)
                     {
                         newTarget = c2;
-                        currentLowest = Vector3.Distance(c2.transform.position, c.transform.position);
+                        currentLowest = distance;
                     }
                 }
 
-                // add us to the currently following list, and start the coroutine
-                if (newTarget && currentLowest > 0)
+                // if we found any character to follow
+                if (newTarget)
                 {
+                    // add the character UIDs to the currently following list, and start the coroutine
                     CharactersFollowing.Add(uid, newTarget.UID);
                     StartCoroutine(FollowTarget(c, newTarget));
                 }
@@ -148,14 +149,18 @@ namespace AutoFollow
             if (c) { autoRun.SetValue(c.CharacterControl, false); }
         }
 
-        // try sprint if target is sprinting
+        // local ControlsInput sprint hook. overrides when player is following a target (returns target's Character.Sprinting bool)
         public bool SprintHook(On.ControlsInput.orig_Sprint orig, int _playerID)
         {
-            // get the UID of this local _playerID, and see if it is currently following anything
-            if (CharactersFollowing.ContainsKey(LocalPlayers[_playerID].UID))
+            // get the uid for this local player id (_playerID will either be 0 or 1)
+            string uid = LocalPlayers[_playerID].UID;
+
+            // check if this player is following anyone (if CharactersFollowing contains the uid as a key entry)
+            if (CharactersFollowing.ContainsKey(uid))
             {
-                // get the target character from our CharactersFollowing dictionary
-                Character target = CharacterManager.Instance.GetCharacter(CharactersFollowing[LocalPlayers[_playerID].UID]);
+                // our CharactersFollowing[UID] entry returns the target uid value
+                string targetUID = CharactersFollowing[uid];
+                Character target = CharacterManager.Instance.GetCharacter(targetUID);
                 if (target)
                 {
                     return target.Sprinting; // if target sprints, we sprint
