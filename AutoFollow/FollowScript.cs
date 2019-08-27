@@ -7,19 +7,18 @@ using System.IO;
 using System.Reflection;
 using UnityEngine;
 using UnityEngine.UI;
-using OModAPI;
 using static CustomKeybindings;
 
 namespace AutoFollow
 {
     public class FollowScript : MonoBehaviour
     {
-        public List<Character> PlayerCharacters = new List<Character>();
-
-        // list of UID strings for characters currently following another player
-        public List<string> CharactersFollowing = new List<string>();
+        public List<Character> PlayerCharacters = new List<Character>(); // list of all player characters
+        public List<string> CharactersFollowing = new List<string>(); // list of UID strings for characters currently following another player
 
         public string FollowKey = "Toggle Auto-Follow";
+
+        public float MinFollowDistance = 1.5f;
 
         public void Init()
         {
@@ -55,7 +54,7 @@ namespace AutoFollow
                     ToggleFollow(c);
                 }
 
-                ID++; // increase 1 to the ID count every loop. each local character will be in the same order of the PlayerCharacters list and their ID number.
+                ID++; // increase 1 to the ID count every loop. the order of the PlayerCharacters list will be the same ID order for the playerInputManager
             }
         }
 
@@ -80,7 +79,6 @@ namespace AutoFollow
                 {
                     if (currentLowest == -1 || Vector3.Distance(c2.transform.position, c.transform.position) < currentLowest)
                     {
-                        OLogger.Log("new target: " + c2.Name);
                         newTarget = c2;
                         currentLowest = Vector3.Distance(c2.transform.position, c.transform.position);
                     }
@@ -112,31 +110,18 @@ namespace AutoFollow
                 // check distance and handle autorun
                 float distance = Vector3.Distance(c.transform.position, target.transform.position);
 
-                if (distance > 1) { autoRun.SetValue(c.CharacterControl, true); }
-                else              { autoRun.SetValue(c.CharacterControl, false); }
+                if (distance > MinFollowDistance) { autoRun.SetValue(c.CharacterControl, true); }
+                else { autoRun.SetValue(c.CharacterControl, false); }
 
-                // player and camera rotation:
-
-                // get look rotation (target - self)
+                // rotate the camera to follow the target
                 var targetRot = Quaternion.LookRotation(target.transform.position - c.transform.position);
-
-                // set rotation speed per delta time (time of last frame)
-                var str = Mathf.Min(5f * Time.deltaTime, 1);
-
-                // never want to rotate Y or Z axis of the character. Set Y target to the current value, and Z to 0.
-                Quaternion fix = new Quaternion(targetRot.x, c.transform.rotation.y, 0, targetRot.w); 
-
-                // rotate the player smoothly
-                c.transform.rotation = Quaternion.Lerp(c.transform.rotation, fix, str); 
-
-                // rotate camera too (but dont use the axis fix, use actual target rotation)
-                c.CharacterCamera.transform.rotation = Quaternion.Lerp(c.transform.rotation, targetRot, str); 
+                c.CharacterCamera.transform.rotation = Quaternion.Lerp(c.transform.rotation, targetRot, Mathf.Min(5f * Time.deltaTime, 1));
 
                 yield return null;
             }
 
             // force stop autorun on exit
-            if (c) { autoRun.SetValue(c.CharacterControl, false); } 
+            if (c) { autoRun.SetValue(c.CharacterControl, false); }
         }
     }
 }
