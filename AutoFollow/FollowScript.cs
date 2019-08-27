@@ -7,7 +7,7 @@ using System.IO;
 using System.Reflection;
 using UnityEngine;
 using UnityEngine.UI;
-using OModAPI;
+//using OModAPI;
 using static CustomKeybindings;
 
 namespace AutoFollow
