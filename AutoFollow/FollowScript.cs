@@ -20,7 +20,6 @@ namespace AutoFollow
         public List<string> CharactersFollowing = new List<string>();
 
         public string FollowKey = "Toggle Auto-Follow";
-        public string ToggleTargetKey = "Change Auto-Follow Target";
 
         public void Init()
         {
