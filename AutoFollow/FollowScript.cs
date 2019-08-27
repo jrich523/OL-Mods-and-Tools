@@ -13,8 +13,8 @@ namespace AutoFollow
 {
     public class FollowScript : MonoBehaviour
     {
-        public List<Character> PlayerCharacters = new List<Character>(); // list of all player characters
-        public Dictionary<int, Character> LocalPlayers = new Dictionary<int, Character>(); // list of local characters, and their IDs
+        public List<Character> PlayerCharacters = new List<Character>(); // list of all player characters including online
+        public Dictionary<int, Character> LocalPlayers = new Dictionary<int, Character>(); // key: local player ID, value: Character of player
         public Dictionary<string, string> CharactersFollowing = new Dictionary<string, string>(); // key: follower UID, value: target UID
 
         public string FollowKey = "Toggle Auto-Follow";
@@ -129,14 +129,6 @@ namespace AutoFollow
                 if (distance > MinFollowDistance)
                 {
                     autoRun.SetValue(c.CharacterControl, true);
-
-                    if (target.Sprinting && !c.Sprinting)
-                    {
-                        FieldInfo m_speedModifier = typeof(CharacterStats).GetField("m_speedModifier", BindingFlags.NonPublic | BindingFlags.Instance);
-                        Stat curModif = m_speedModifier.GetValue(c.Stats) as Stat;
-
-
-                    }
                 }
                 else
                 {
