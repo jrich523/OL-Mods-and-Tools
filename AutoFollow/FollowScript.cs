@@ -52,7 +52,7 @@ namespace AutoFollow
             {
                 if (m_playerInputManager[ID].GetButtonDown(FollowKey))
                 {
-                    ToggleFollow(c, c.UID);
+                    ToggleFollow(c);
                 }
 
                 ID++; // increase 1 to the ID count every loop. each local character will be in the same order of the PlayerCharacters list and their ID number.
@@ -60,8 +60,10 @@ namespace AutoFollow
         }
 
         // toggle the autofollow on and off
-        public void ToggleFollow(Character c, string uid)
+        public void ToggleFollow(Character c)
         {
+            string uid = c.UID;
+
             // if currently following, remove us from the following list (breaks the follow function automatically)
             if (CharactersFollowing.Contains(uid))
             {
@@ -130,7 +132,7 @@ namespace AutoFollow
                 c.transform.rotation = Quaternion.Lerp(c.transform.rotation, fix, str); 
 
                 // rotate camera too (but dont use the Z axis fix, use actual target rotation)
-                c.CharacterCamera.transform.rotation = Quaternion.Lerp(c.transform.rotation, fix, str); 
+                c.CharacterCamera.transform.rotation = Quaternion.Lerp(c.transform.rotation, targetRot, str); 
 
                 yield return null;
             }
