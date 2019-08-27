@@ -132,8 +132,7 @@ namespace AutoFollow
                 // rotate camera too (but dont use the Z axis fix, use actual target rotation)
                 c.CharacterCamera.transform.rotation = Quaternion.Lerp(c.transform.rotation, targetRot, str); 
 
-                // sleep the coroutine for 100ms. use 'yield return null' for no sleep.
-                yield return new WaitForSeconds(0.1f);
+                yield return null;
             }
 
             // force stop autorun on exit
