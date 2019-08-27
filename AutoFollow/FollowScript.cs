@@ -123,14 +123,14 @@ namespace AutoFollow
                 // set rotation speed per delta time (time of last frame)
                 var str = Mathf.Min(5f * Time.deltaTime, 1);
 
-                // never want to rotate Z axis of the character, set it to 0
-                Quaternion fix = new Quaternion(targetRot.x, targetRot.y, 0, targetRot.w); 
+                // never want to rotate Y or Z axis of the character, set them to 0
+                Quaternion fix = new Quaternion(targetRot.x, 0, 0, targetRot.w); 
 
                 // rotate the player smoothly
                 c.transform.rotation = Quaternion.Lerp(c.transform.rotation, fix, str); 
 
                 // rotate camera too (but dont use the Z axis fix, use actual target rotation)
-                c.CharacterCamera.transform.rotation = Quaternion.Lerp(c.transform.rotation, targetRot, str); 
+                c.CharacterCamera.transform.rotation = Quaternion.Lerp(c.transform.rotation, fix, str); 
 
                 yield return null;
             }
