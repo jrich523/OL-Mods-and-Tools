@@ -7,7 +7,7 @@ using System.IO;
 using System.Reflection;
 using UnityEngine;
 using UnityEngine.UI;
-//using OModAPI;
+using OModAPI;
 using static CustomKeybindings;
 
 namespace AutoFollow
@@ -76,15 +76,13 @@ namespace AutoFollow
                 Character newTarget = null;
 
                 // for each player character who's UID is not this character's UID
-                foreach (string uid2 in CharacterManager.Instance.PlayerCharacters.Values.Where(x => x != uid))
+                foreach (Character c2 in PlayerCharacters.Where(x => x.UID != uid))
                 {
-                    if (CharacterManager.Instance.GetCharacter(uid2) is Character c2)
+                    if (currentLowest == -1 || Vector3.Distance(c2.transform.position, c.transform.position) < currentLowest)
                     {
-                        if (currentLowest == -1 || Vector3.Distance(c2.transform.position, c.transform.position) < currentLowest)
-                        {
-                            newTarget = c2;
-                            currentLowest = Vector3.Distance(c2.transform.position, c.transform.position);
-                        }
+                        OLogger.Log("new target: " + c2.Name);
+                        newTarget = c2;
+                        currentLowest = Vector3.Distance(c2.transform.position, c.transform.position);
                     }
                 }
 
@@ -125,8 +123,8 @@ namespace AutoFollow
                 // set rotation speed per delta time (time of last frame)
                 var str = Mathf.Min(5f * Time.deltaTime, 1);
 
-                // never want to rotate Y or Z axis of the character, set them to 0
-                Quaternion fix = new Quaternion(targetRot.x, 0, 0, targetRot.w); 
+                // never want to rotate Y or Z axis of the character. Set Y target to the current value, and Z to 0.
+                Quaternion fix = new Quaternion(targetRot.x, c.transform.rotation.y, 0, targetRot.w); 
 
                 // rotate the player smoothly
                 c.transform.rotation = Quaternion.Lerp(c.transform.rotation, fix, str); 
