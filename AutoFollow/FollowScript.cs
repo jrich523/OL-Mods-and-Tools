@@ -115,7 +115,7 @@ namespace AutoFollow
 
                 // rotate the camera to follow the target
                 var targetRot = Quaternion.LookRotation(target.transform.position - c.transform.position);
-                c.CharacterCamera.transform.rotation = Quaternion.Lerp(c.transform.rotation, targetRot, Mathf.Min(5f * Time.deltaTime, 1));
+                c.CharacterCamera.transform.rotation = Quaternion.Lerp(c.CharacterCamera.transform.rotation, targetRot, Mathf.Min(5f * Time.deltaTime, 1));
 
                 yield return null;
             }
