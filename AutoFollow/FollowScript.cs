@@ -48,21 +48,14 @@ namespace AutoFollow
 
             // check each local character input every frame for follow input
             int ID = 0;
-            foreach (Character c in PlayerCharacters)
+            foreach (Character c in PlayerCharacters.Where(c => c.IsLocalPlayer))
             {
-                string uid = c.UID;
-
-                // make sure the player is local (ie not an online co-op player)
-                if (c.IsLocalPlayer)
+                if (m_playerInputManager[ID].GetButtonDown(FollowKey))
                 {
-                    // check if follow toggle is being pressed
-                    if (m_playerInputManager[ID].GetButtonDown(FollowKey))
-                    {
-                        ToggleFollow(c, uid);
-                    }
-
-                    ID++; // increase 1 to the ID count every loop. each local character will be in the same order of the PlayerCharacters list and their ID number.
+                    ToggleFollow(c, c.UID);
                 }
+
+                ID++; // increase 1 to the ID count every loop. each local character will be in the same order of the PlayerCharacters list and their ID number.
             }
         }
 
