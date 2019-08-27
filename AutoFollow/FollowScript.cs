@@ -131,7 +131,7 @@ namespace AutoFollow
                 // rotate the player smoothly
                 c.transform.rotation = Quaternion.Lerp(c.transform.rotation, fix, str); 
 
-                // rotate camera too (but dont use the Z axis fix, use actual target rotation)
+                // rotate camera too (but dont use the axis fix, use actual target rotation)
                 c.CharacterCamera.transform.rotation = Quaternion.Lerp(c.transform.rotation, targetRot, str); 
 
                 yield return null;
