@@ -33,7 +33,7 @@ namespace AutoFollow
         // update runs once per frame
         internal void Update()
         {
-            // if no local characters, return (and clear list)
+            // if no local characters, return (and clear lists)
             if (CharacterManager.Instance.PlayerCharacters.Count <= 0)
             {
                 if (CharactersFollowing.Count > 0)
@@ -65,14 +65,12 @@ namespace AutoFollow
             }
 
             // check each local character input every frame for follow input
-            int ID = 0;
-            foreach (Character c in PlayerCharacters.Where(c => c.IsLocalPlayer))
+            foreach (KeyValuePair<int, Character> player in LocalPlayers)
             {
-                if (m_playerInputManager[ID].GetButtonDown(FollowKey))
+                if (m_playerInputManager[player.Key].GetButtonDown(FollowKey))
                 {
-                    ToggleFollow(c);
+                    ToggleFollow(player.Value);
                 }
-                ID++;
             }
         }
 
