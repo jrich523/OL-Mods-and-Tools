@@ -1,13 +1,10 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using System.Collections;
-using System.IO;
 using System.Reflection;
 using UnityEngine;
-using UnityEngine.UI;
 using static CustomKeybindings;
+//using OModAPI;
 
 namespace AutoFollow
 {
@@ -24,6 +21,7 @@ namespace AutoFollow
 
         public void Init()
         {
+            // CustomKeybindings.cs (credit: Stian)
             AddAction(FollowKey, KeybindingsCategory.Actions, ControlType.Both, 5);
 
             // sprint input hook
@@ -36,10 +34,11 @@ namespace AutoFollow
             // if no local characters, return (and clear lists)
             if (CharacterManager.Instance.PlayerCharacters.Count <= 0)
             {
-                if (CharactersFollowing.Count > 0)
+                if (PlayerCharacters.Count > 0)
                 {
-                    CharactersFollowing.Clear();
+                    PlayerCharacters.Clear();
                     LocalPlayers.Clear();
+                    CharactersFollowing.Clear();
                 }
                 return;
             }
@@ -47,25 +46,7 @@ namespace AutoFollow
             // update character list on change
             if (CharacterManager.Instance.PlayerCharacters.Count != PlayerCharacters.Count())
             {
-                PlayerCharacters.Clear();
-                LocalPlayers.Clear();
-
-                // this list will be the same order that m_playerInputManager uses for local player IDs, so its safe to get them this "blind" way.
-                // there will only ever be two local players, and the host character is always 0.
-                int localID = 0;
-
-                foreach (string uid in CharacterManager.Instance.PlayerCharacters.Values)
-                {
-                    // add all players (including online) to main list
-                    Character c = CharacterManager.Instance.GetCharacter(uid);
-                    PlayerCharacters.Add(c);
-
-                    if (c.IsLocalPlayer)
-                    {
-                        LocalPlayers.Add(localID, c);
-                        localID++; // increment to local ID counter only when we find a LocalPlayer
-                    }
-                }
+                UpdateCharacterLists();
             }
 
             // check each local character for follow input
@@ -83,34 +64,43 @@ namespace AutoFollow
         {
             string uid = c.UID;
 
-            // if currently following, remove us from the following list (breaks the follow function automatically)
+            // if currently following, remove this character from the following list (breaks the follow function automatically)
             if (CharactersFollowing.ContainsKey(uid))
             {
                 CharactersFollowing.Remove(uid);
             }
             else // otherwise, toggle it on
             {
-                // find closest player character and follow it
-                float currentLowest = -1;
-                Character newTarget = null;
+                FindFollowTarget(c);
+            }
+        }
 
-                // for each player who's UID is not this character's UID
-                foreach (Character c2 in PlayerCharacters.Where(x => x.UID != uid))
-                {
-                    // if this is the first check, or if it is a new lowest distance
-                    if (currentLowest == -1 || Vector3.Distance(c2.transform.position, c.transform.position) < currentLowest)
-                    {
-                        newTarget = c2;
-                        currentLowest = Vector3.Distance(c2.transform.position, c.transform.position);
-                    }
-                }
+        public void FindFollowTarget(Character c)
+        {
+            string uid = c.UID;
+            // find closest player character and follow it
+            float currentLowest = -1;
+            Character newTarget = null;
 
-                // add us to the currently following list, and start the coroutine
-                if (newTarget && currentLowest > 0)
+            // check all other characters
+            foreach (Character c2 in PlayerCharacters.Where(x => x.UID != uid))
+            {
+                float distance = Vector3.Distance(c2.transform.position, c.transform.position);
+
+                // if this is the first check, or if it is a new lowest distance
+                if (currentLowest == -1 || distance < currentLowest)
                 {
-                    CharactersFollowing.Add(uid, newTarget.UID);
-                    StartCoroutine(FollowTarget(c, newTarget));
+                    newTarget = c2;
+                    currentLowest = distance;
                 }
+            }
+
+            // if we found any character to follow
+            if (newTarget)
+            {
+                // add the character UIDs to the currently following list, and start the coroutine
+                CharactersFollowing.Add(uid, newTarget.UID);
+                StartCoroutine(FollowTarget(c, newTarget));
             }
         }
 
@@ -132,10 +122,7 @@ namespace AutoFollow
                 // check distance and handle autorun
                 float distance = Vector3.Distance(c.transform.position, target.transform.position);
 
-                if (distance > MinFollowDistance)
-                    autoRun.SetValue(c.CharacterControl, true);
-                else
-                    autoRun.SetValue(c.CharacterControl, false);
+                autoRun.SetValue(c.CharacterControl, distance > MinFollowDistance);
 
                 // rotate the camera to follow the target
                 var targetRot = Quaternion.LookRotation(target.transform.position - c.transform.position);
@@ -148,15 +135,43 @@ namespace AutoFollow
             if (c) { autoRun.SetValue(c.CharacterControl, false); }
         }
 
-        // try sprint if target is sprinting
+        // update lists of characters
+        public void UpdateCharacterLists()
+        {
+            PlayerCharacters.Clear();
+            LocalPlayers.Clear();
+
+            // this list will be the same order that m_playerInputManager uses for local player IDs, so its safe to get them this "blind" way.
+            // there will only ever be two local players, and the host character is always 0.
+            int localID = 0;
+
+            foreach (string uid in CharacterManager.Instance.PlayerCharacters.Values)
+            {
+                // add all players (including online) to main list
+                Character c = CharacterManager.Instance.GetCharacter(uid);
+                PlayerCharacters.Add(c);
+
+                if (c.IsLocalPlayer)
+                {
+                    LocalPlayers.Add(localID, c);
+                    localID++; // increment to local ID counter only when we find a LocalPlayer
+                }
+            }
+        }
+
+        // local ControlsInput sprint hook. overrides when player is following a target (returns target's Character.Sprinting bool)
         public bool SprintHook(On.ControlsInput.orig_Sprint orig, int _playerID)
         {
-            // get the UID of this local _playerID, and see if it is currently following anything
-            if (CharactersFollowing.ContainsKey(LocalPlayers[_playerID].UID))
+            // get the uid for this local player id (_playerID will either be 0 or 1)
+            string uid = LocalPlayers[_playerID].UID;
+
+            // check if this player is following anyone (if CharactersFollowing contains the uid as a key entry)
+            if (CharactersFollowing.ContainsKey(uid))
             {
-                // get the target character from our CharactersFollowing dictionary
-                Character target = CharacterManager.Instance.GetCharacter(CharactersFollowing[LocalPlayers[_playerID].UID]);
-                if (target)
+                // our CharactersFollowing[UID] entry returns the target uid value
+                string targetUID = CharactersFollowing[uid];
+                
+                if (CharacterManager.Instance.GetCharacter(targetUID) is Character target)
                 {
                     return target.Sprinting; // if target sprints, we sprint
                 }
