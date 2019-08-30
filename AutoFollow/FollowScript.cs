@@ -4,6 +4,7 @@ using System.Collections;
 using System.Reflection;
 using UnityEngine;
 using static CustomKeybindings;
+//using OModAPI;
 
 namespace AutoFollow
 {
@@ -33,10 +34,11 @@ namespace AutoFollow
             // if no local characters, return (and clear lists)
             if (CharacterManager.Instance.PlayerCharacters.Count <= 0)
             {
-                if (CharactersFollowing.Count > 0)
+                if (PlayerCharacters.Count > 0)
                 {
-                    CharactersFollowing.Clear();
+                    PlayerCharacters.Clear();
                     LocalPlayers.Clear();
+                    CharactersFollowing.Clear();
                 }
                 return;
             }
@@ -44,25 +46,7 @@ namespace AutoFollow
             // update character list on change
             if (CharacterManager.Instance.PlayerCharacters.Count != PlayerCharacters.Count())
             {
-                PlayerCharacters.Clear();
-                LocalPlayers.Clear();
-
-                // this list will be the same order that m_playerInputManager uses for local player IDs, so its safe to get them this "blind" way.
-                // there will only ever be two local players, and the host character is always 0.
-                int localID = 0;
-
-                foreach (string uid in CharacterManager.Instance.PlayerCharacters.Values)
-                {
-                    // add all players (including online) to main list
-                    Character c = CharacterManager.Instance.GetCharacter(uid);
-                    PlayerCharacters.Add(c);
-
-                    if (c.IsLocalPlayer)
-                    {
-                        LocalPlayers.Add(localID, c);
-                        localID++; // increment to local ID counter only when we find a LocalPlayer
-                    }
-                }
+                UpdateCharacterLists();
             }
 
             // check each local character for follow input
@@ -87,31 +71,36 @@ namespace AutoFollow
             }
             else // otherwise, toggle it on
             {
-                // find closest player character and follow it
-                float currentLowest = -1;
-                Character newTarget = null;
+                FindFollowTarget(c);
+            }
+        }
 
-                // check all other characters
-                foreach (string uid2 in CharacterManager.Instance.PlayerCharacters.Values.Where(x => x != uid))
+        public void FindFollowTarget(Character c)
+        {
+            string uid = c.UID;
+            // find closest player character and follow it
+            float currentLowest = -1;
+            Character newTarget = null;
+
+            // check all other characters
+            foreach (Character c2 in PlayerCharacters.Where(x => x.UID != uid))
+            {
+                float distance = Vector3.Distance(c2.transform.position, c.transform.position);
+
+                // if this is the first check, or if it is a new lowest distance
+                if (currentLowest == -1 || distance < currentLowest)
                 {
-                    Character c2 = CharacterManager.Instance.GetCharacter(uid2);
-                    float distance = Vector3.Distance(c2.transform.position, c.transform.position);
-
-                    // if this is the first check, or if it is a new lowest distance
-                    if (currentLowest == -1 || distance < currentLowest)
-                    {
-                        newTarget = c2;
-                        currentLowest = distance;
-                    }
+                    newTarget = c2;
+                    currentLowest = distance;
                 }
+            }
 
-                // if we found any character to follow
-                if (newTarget)
-                {
-                    // add the character UIDs to the currently following list, and start the coroutine
-                    CharactersFollowing.Add(uid, newTarget.UID);
-                    StartCoroutine(FollowTarget(c, newTarget));
-                }
+            // if we found any character to follow
+            if (newTarget)
+            {
+                // add the character UIDs to the currently following list, and start the coroutine
+                CharactersFollowing.Add(uid, newTarget.UID);
+                StartCoroutine(FollowTarget(c, newTarget));
             }
         }
 
@@ -133,10 +122,7 @@ namespace AutoFollow
                 // check distance and handle autorun
                 float distance = Vector3.Distance(c.transform.position, target.transform.position);
 
-                if (distance > MinFollowDistance)
-                    autoRun.SetValue(c.CharacterControl, true);
-                else
-                    autoRun.SetValue(c.CharacterControl, false);
+                autoRun.SetValue(c.CharacterControl, distance > MinFollowDistance);
 
                 // rotate the camera to follow the target
                 var targetRot = Quaternion.LookRotation(target.transform.position - c.transform.position);
@@ -147,6 +133,30 @@ namespace AutoFollow
 
             // force stop autorun on exit
             if (c) { autoRun.SetValue(c.CharacterControl, false); }
+        }
+
+        // update lists of characters
+        public void UpdateCharacterLists()
+        {
+            PlayerCharacters.Clear();
+            LocalPlayers.Clear();
+
+            // this list will be the same order that m_playerInputManager uses for local player IDs, so its safe to get them this "blind" way.
+            // there will only ever be two local players, and the host character is always 0.
+            int localID = 0;
+
+            foreach (string uid in CharacterManager.Instance.PlayerCharacters.Values)
+            {
+                // add all players (including online) to main list
+                Character c = CharacterManager.Instance.GetCharacter(uid);
+                PlayerCharacters.Add(c);
+
+                if (c.IsLocalPlayer)
+                {
+                    LocalPlayers.Add(localID, c);
+                    localID++; // increment to local ID counter only when we find a LocalPlayer
+                }
+            }
         }
 
         // local ControlsInput sprint hook. overrides when player is following a target (returns target's Character.Sprinting bool)
@@ -160,8 +170,8 @@ namespace AutoFollow
             {
                 // our CharactersFollowing[UID] entry returns the target uid value
                 string targetUID = CharactersFollowing[uid];
-                Character target = CharacterManager.Instance.GetCharacter(targetUID);
-                if (target)
+                
+                if (CharacterManager.Instance.GetCharacter(targetUID) is Character target)
                 {
                     return target.Sprinting; // if target sprints, we sprint
                 }
